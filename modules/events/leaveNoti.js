@@ -1,177 +1,94 @@
+const fs = require("fs-extra");
+const path = require("path");
 
 module.exports.config = {
   name: "leave",
   eventType: ["log:unsubscribe"],
-  version: "7.0.0",
-  credits: "TOHI-BOT-HUB (Anti-Out Event Integrated by TOHIDUL)",
-  description: "🎭 Enhanced leave notification with integrated Anti-Out event system",
-  dependencies: {
-    "fs-extra": "",
-    "path": ""
-  }
+  version: "7.3.1",
+  credits: "TOHI-BOT-HUB ",
+  description: "🎭 Smart leave + anti-out with auto condition & silent off mode"
 };
 
-const fs = require('fs-extra');
-const path = require('path');
-
-// Stylish text function
-function stylishText(text, style = "default") {
+function stylishText(text, type = "default") {
   const styles = {
-    default: `✨ ${text} ✨`,
-    title: `🎭 ${text} 🎭`,
-    subtitle: `🌟 ${text} 🌟`,
-    warning: `⚠️ ${text} ⚠️`,
-    success: `✅ ${text} ✅`,
-    error: `❌ ${text} ❌`,
-    bangla: `🇧🇩 ${text} 🇧🇩`,
-    love: `💖 ${text} 💖`,
     fire: `🔥 ${text} 🔥`,
     boss: `👑 ${text} 👑`,
-    antiout: `🛡️ ${text} 🛡️`
+    rip: `🪦 ${text} 🪦`,
+    silent: `🔇 ${text} 🔇`,
+    warning: `⚠️ ${text} ⚠️`,
+    bot: `🤖 ${text} 🤖`
   };
-  return styles[style] || styles.default;
+  return styles[type] || `✨ ${text} ✨`;
 }
 
-
-
-// Main leave notification function
-module.exports.run = async function({ api, event, Users, Threads }) {
+module.exports.run = async function ({ api, event, Users, Threads }) {
   try {
-    const { threadID } = event;
-    const leftParticipantFbId = event.logMessageData.leftParticipantFbId;
+    const { threadID, author } = event;
+    const leftID = event.logMessageData.leftParticipantFbId;
 
-    // Don't process if bot itself left
-    if (leftParticipantFbId == api.getCurrentUserID()) return;
+    if (leftID == api.getCurrentUserID()) return;
 
-    // Get thread data for anti-out setting
-    let data = (await Threads.getData(threadID)).data || {};
-    const isAntiOutEnabled = data.antiout === true;
+    const data = (await Threads.getData(threadID)).data || {};
+    const antiOut = data.antiout === true;
+    const isSelfLeave = leftID === author;
+    const isKicked = author !== leftID;
 
-    // Get user info
-    const userInfo = {
-      id: leftParticipantFbId,
-      name: global.data.userName.get(leftParticipantFbId) || await Users.getNameUser(leftParticipantFbId) || "Unknown User"
-    };
+    const name = global.data.userName.get(leftID) || await Users.getNameUser(leftID) || "User";
 
-    // Detect leave type
-    const isKicked = event.author !== leftParticipantFbId;
-    const isSelfLeave = event.author === leftParticipantFbId;
-
-    // Current time in Bangladesh
-    const currentTime = new Date().toLocaleString("bn-BD", {
-      timeZone: "Asia/Dhaka",
-      hour12: false
-    });
-
-    // Handle Anti-Out for self-leave
-    if (isSelfLeave && isAntiOutEnabled) {
-      // Try to re-add user
-      api.addUserToGroup(leftParticipantFbId, threadID, async (error, info) => {
-        if (error) {
-          console.error(`Failed to re-add user ${leftParticipantFbId}:`, error);
-          
-          // Check if error is due to bot not being admin
-          let failureMsg;
-          if (error.toString().includes('admin') || error.toString().includes('permission')) {
-            failureMsg = `
-${stylishText("গ্রুপে থাকার যোগ্যতা নেই দেখে লিভ দিছিলো!", "fire")}
-
-😂 ${userInfo.name} পালানোর চেষ্টা করেছে!
-❌ ফেরত আনা যায়নি - বট এডমিন নয়।
-💡 বটকে এডমিন বানালে আবার এড করতে পারবো।
-
-🚩 Made by TOHIDUL`;
-          } else {
-            failureMsg = `
-${stylishText("গ্রুপে থাকার যোগ্যতা নেই দেখে লিভ দিছিলো!", "fire")}
-
-😂 ${userInfo.name} পালানোর চেষ্টা করেছে কিন্তু ব্যর্থ!
-❌ ফেরত আনা যায়নি - হয়তো বটকে ব্লক করেছে।
-
-🚩 Made by TOHIDUL`;
-          }
-
-          return api.sendMessage(failureMsg, threadID);
+    // ✅ Anti-Out ON: Self Leave Detected
+    if (isSelfLeave && antiOut) {
+      return api.addUserToGroup(leftID, threadID, async (err) => {
+        if (err) {
+          // Fail silently — কোনো মেসেজ যাবে না
+          return;
         } else {
-          // Send success message with video
           const successMsg = `
-${stylishText("গ্রুপে থাকার যোগ্যতা নেই দেখে লিভ দিছিলো, কিন্তু আমি তো আছি—যেতে দিবো না!", "boss")}
+${stylishText("Tumi Chipay Jaba..!", "boss")}
 
-😎 ${userInfo.name} পালাতে চেয়েছিলো কিন্তু ধরে আনলাম!
-🔒 Anti-Out সিস্টেম কাজ করেছে।
+😎 ${name} Tomake To Ami Jete Dibo Na Botsho!
+🛡 Pida Halare Niya Ansi.
 
-🚩 Made by TOHIDUL`;
+🚩 Ew'r MaKiMa`;
 
-          try {
-            const videoPath = path.join(__dirname, 'cache', 'leave', 'Pakad MC Meme Template - Pakad Le BKL Ke Meme - Chodu CID Meme.mp4');
-            
-            let attachment = null;
-            if (fs.existsSync(videoPath)) {
-              const stats = fs.statSync(videoPath);
-              if (stats.size > 1000) {
-                attachment = fs.createReadStream(videoPath);
-              }
-            }
+          const vid = path.join(__dirname, "cache", "leave", "antiout.mp4");
+          const sendVid = fs.existsSync(vid) && fs.statSync(vid).size > 1000;
 
-            const messageData = { body: successMsg };
-            if (attachment) {
-              messageData.attachment = attachment;
-            }
-
-            return api.sendMessage(messageData, threadID);
-          } catch (videoError) {
-            return api.sendMessage(successMsg, threadID);
-          }
+          return api.sendMessage({
+            body: successMsg,
+            attachment: sendVid ? fs.createReadStream(vid) : undefined
+          }, threadID);
         }
       });
-      return;
     }
 
-    // Handle normal leave notifications when anti-out is OFF or user was kicked
-    if (!isAntiOutEnabled || isKicked) {
-      let message;
-      
-      if (isKicked) {
-        // User was kicked
-        message = `
-${stylishText("একজন গ্রুপের সম্মানিত জঘন্য ব্যক্তি কিক খেয়েছে!", "warning")}
+    // ❌ Anti-Out OFF + Self Leave = Silent Mode
+    if (isSelfLeave && !antiOut) return;
 
-🦵 ${userInfo.name} কে কিক করা হয়েছে।
-😔 আর থাকতে পারলো না।
+    // 👢 Kicked = Message always
+    if (isKicked) {
+      const kickMsg = `
+${stylishText(" 🥹 Bhai Tmi Chander Desh 😞!", "fire")}
 
-🚩 Made by TOHIDUL`;
-      } else {
-        // Self leave when anti-out is off
-        message = `
-${stylishText("একজন গ্রুপের সম্মানিত জঘন্য ব্যক্তি লিভ নিয়ে নিলো!", "warning")}
+🚷 ${name} Ei Bhai Ke Chander Deshe Pathiye Deya Hoise ।
+😭 Kose2 🥹
 
-😔 ${userInfo.name} নিজেই গ্রুপ ছেড়ে গেছে।
-🔓 Anti-Out বন্ধ থাকায় ফেরত আনা হয়নি।
-
-🚩 Made by TOHIDUL`;
-      }
-
-      return api.sendMessage(message, threadID);
+🚩 Ew'r MaKiMa`;
+      return api.sendMessage(kickMsg, threadID);
     }
 
-  } catch (error) {
-    console.error('LeaveNoti integrated error:', error.message);
-    
+  } catch (err) {
+    console.error("AntiOut Error:", err.message);
     try {
-      const leftParticipantFbId = event.logMessageData.leftParticipantFbId;
-      const name = global.data.userName.get(leftParticipantFbId) || "Unknown User";
+      const id = event.logMessageData.leftParticipantFbId;
+      const name = global.data.userName.get(id) || "User";
+      const fallback = `
+${stylishText(" AHA MANUSH...", "silent")}
+😥 ${name} CHOLE GELA PIOO 😞
 
-      const fallbackMessage = `
-${stylishText("একজন গ্রুপের সম্মানিত জঘন্য ব্যক্তি লিভ নিয়ে নিলো!", "warning")}
-
-😔 ${name} চলে গেছে।
-
-🚩 Made by TOHIDUL`;
-
-      return api.sendMessage(fallbackMessage, event.threadID);
-    } catch (fallbackError) {
-      console.error('Fallback message failed:', fallbackError.message);
-      return;
+🚩 Er'r MakiMa`;
+      return api.sendMessage(fallback, event.threadID);
+    } catch (fallbackErr) {
+      console.error("Fallback failed:", fallbackErr.message);
     }
   }
 };
