@@ -7,6 +7,8 @@ const axios = require("axios");
 
 module.exports.config = {
   name: "jan",
+  usePrefix:true,
+ commandCategory: "teach",
   aliases: ["jann","জান", "janu", "makima", "bby", "baby"],
   version: "1.7",
   author: "MahMUD",
