@@ -67,7 +67,7 @@ ${stylishText("Tumi Chipay Jaba..!", "boss")}
     // 👢 Kicked = Message always
     if (isKicked) {
       const kickMsg = `
-${stylishText(" 🥹 Bhai Tmi Chander Desh 😞!", "fire")}
+${stylishText(" 🥹 Bhai Tmi Chander Deshe 😞!", "fire")}
 
 🚷 ${name} Ei Bhai Ke Chander Deshe Pathiye Deya Hoise ।
 😭 Kose2 🥹
