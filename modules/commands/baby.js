@@ -1,13 +1,20 @@
 const axios = require("axios");
-const axiosRetry = require("axios-retry");
-
-axiosRetry(axios, {
-  retries: 2,
-  retryDelay: () => 1000,
-  shouldResetTimeout: true
-});
 
 let cachedApiUrl = null;
+const botReplies = [
+  "বেশি bot Bot করলে leave নিবো কিন্তু😒😒",
+  "bolo bby tmi amake valobasho",
+  "kire joker 🤡",
+  "🤡",
+  "শুনবো না😼তুমি আমাকে প্রেম করাই দাও নাই🥺পচা তুমি🥺",
+  "আমি আবাল দের সাথে কথা বলি না,ok😒",
+  "এতো ডেকো না,প্রেম এ পরে যাবো তো🙈",
+  "Bolo Babu, তুমি কি আমাকে ভালোবাসো? 🙈💋",
+  "বার বার ডাকলে মাথা গরম হয়ে যায় কিন্তু😑",
+  "হ্যা বলো😒, তোমার জন্য কি করতে পারি😐😑?",
+  "এতো ডাকছিস কেন?গালি শুনবি নাকি? 🤬",
+  "I love you janu🥰"
+];
 
 const getBaseApiUrl = async () => {
   if (cachedApiUrl) return cachedApiUrl;
@@ -21,37 +28,27 @@ const getBaseApiUrl = async () => {
   }
 };
 
-const botReplies = [
-  "বেশি bot Bot করলে leave নিবো কিন্তু😒😒",
-  "bolo bby tmi amake valobasho",
-  "kire joker 🤡",
-  "🤡",
-  "শুনবো না😼তুমি আমাকে প্রেম করাই দাও নাই🥺পচা তুমি🥺",
-  "আমি আবাল দের সাথে কথা বলি না,ok😒",
-  "এতো ডেকো না,প্রেম এ পরে যাবো তো🙈",
-  "Bolo Babu, তুমি কি আমাকে ভালোবাসো? 🙈💋",
-  "বার বার ডাকলে মাথা গরম হয়ে যায় কিন্তু😑",
-  "হ্যা বলো😒, তোমার জন্য কি করতে পারি😐😑?",
-  "এতো ডাকছিস কেন?গালি শুনবি নাকি? 🤬",
-  "I love you janu🥰",
-  " Tor Basai Ki Ma Bon Nai Khali Amare Dakos 😒"
-];
+const callBabyApi = async (text, senderID, retries = 3) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const baseUrl = await getBaseApiUrl();
+      const res = await axios.get(`${baseUrl}/baby`, {
+        params: { text, senderID, font: 1 },
+        timeout: 7000,
+        headers: {
+          'Connection': 'keep-alive',
+          'User-Agent': 'Mozilla/5.0'
+        }
+      });
 
-const callBabyApi = async (text, senderID) => {
-  try {
-    const baseUrl = await getBaseApiUrl();
-    const res = await axios.get(`${baseUrl}/baby`, {
-      params: { text, senderID, font: 1 },
-      timeout: 7000,
-      headers: {
-        'Connection': 'keep-alive',
-        'User-Agent': 'Mozilla/5.0'
-      }
-    });
-    return res.data?.reply || res.data?.message || null;
-  } catch (err) {
-    console.error("[BABY] API Error:", err.message);
-    return null;
+      const reply = res.data?.reply || res.data?.message;
+      if (reply) return reply;
+      throw new Error("Invalid API response");
+    } catch (err) {
+      console.warn(`[BABY] API attempt ${attempt} failed: ${err.message}`);
+      if (attempt === retries) return null;
+      await new Promise(r => setTimeout(r, 1000 * attempt));
+    }
   }
 };
 
@@ -68,8 +65,8 @@ const checkCooldown = (uid) => {
 
 module.exports.config = {
   name: "baby",
-  version: "9.0.0",
-  credits: "TOHI-BOT-HUB",
+  version: "9.0.1",
+  credits: "TOHI-BOT-HUB (No-Retry-Version)",
   cooldowns: 0,
   hasPermssion: 0,
   description: "Fast AI chatbot with Bengali replies 💬",
@@ -82,12 +79,11 @@ module.exports.run = async function ({ api, event, args }) {
   try {
     const uid = event.senderID;
     if (!checkCooldown(uid)) return;
-
     if (!args[0]) return api.sendMessage("বলো বেবি, কি বলবে? 😊", event.threadID, event.messageID);
 
     const input = args.join(" ").toLowerCase();
-
     const reply = await callBabyApi(input, uid) || randomFromArray(botReplies);
+
     return api.sendMessage(reply, event.threadID, (err, info) => {
       if (!err && info) {
         global.client.handleReply.push({
@@ -101,14 +97,13 @@ module.exports.run = async function ({ api, event, args }) {
 
   } catch (err) {
     console.error("[BABY] Run Error:", err.message);
-    return api.sendMessage("কিছু একটা সমস্যা হয়েছে 😭", event.threadID, event.messageID);
+    return api.sendMessage("কিছু সমস্যা হয়েছে 😔", event.threadID, event.messageID);
   }
 };
 
 module.exports.handleReply = async function ({ api, event, handleReply }) {
   try {
     if (handleReply.author !== event.senderID || !checkCooldown(event.senderID)) return;
-
     const userInput = event.body.toLowerCase();
     const reply = await callBabyApi(userInput, event.senderID) || "API সমস্যা 😔 পরে আবার বলো";
 
@@ -122,7 +117,6 @@ module.exports.handleReply = async function ({ api, event, handleReply }) {
         });
       }
     }, event.messageID);
-
   } catch (err) {
     console.error("[BABY] Reply Error:", err.message);
     return api.sendMessage("সমস্যা হয়েছে 😅", event.threadID, event.messageID);
@@ -139,7 +133,7 @@ module.exports.handleEvent = async function ({ api, event }) {
       "baby", "bby", "sona", "chuna", "jan", "xan", "kolija", "kolixa",
       "bbz", "babu", "bou", "habibi", "bebi", "বি", "সোনা", "চুনা",
       "জান", "কলিজা", "কোলিক্সা", "বিবিজেড", "বাবু", "বউ", "হাবিবি",
-      "বেবি", "বিবি", "bot","bubu","bbu","জানু"," janu"
+      "বেবি", "বিবি", "bot"
     ];
 
     const isExact = triggers.includes(body);
@@ -148,6 +142,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     if (isExact || startsWithTrigger) {
       const text = isExact ? body : body.split(" ").slice(1).join(" ");
       const reply = await callBabyApi(text, senderID) || (body === "bot" ? randomFromArray(botReplies) : null);
+
       if (reply) {
         return api.sendMessage(reply, event.threadID, (err, info) => {
           if (!err && info) {
@@ -161,7 +156,6 @@ module.exports.handleEvent = async function ({ api, event }) {
         }, event.messageID);
       }
     }
-
   } catch (err) {
     console.error("[BABY] Event Error:", err.message);
   }
