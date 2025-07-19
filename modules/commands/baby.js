@@ -18,7 +18,7 @@ async function getBotResponse(message) {
 
 module.exports = {
   config: {
-    name: "bot",
+    name: "baby",
     usePrefix: false,
     commandCategory: "ai",
     version: "1.7",
